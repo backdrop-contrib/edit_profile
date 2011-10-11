@@ -49,9 +49,23 @@ function edit_profile_admin_paths() {
  * Access callback for editing user profiles.
  */
 function edit_profile_user_edit_access($account) {
+  if (!user_edit_access($account)) {
+    return FALSE;
+  }
+
   // Do not show the "Edit profile" tab if there are no user fields to display
-  // on it.
-  return user_edit_access($account) && field_info_instances('user', 'user');
+  // on it, or if there are but the current user doesn't have access to
+  // actually edit any of those fields.
+  if ($instances = field_info_instances('user', 'user')) {
+    foreach ($instances as $instance) {
+      $field = field_info_field($instance['field_name']);
+      if (field_access('edit', $field, $instance['entity_type'], $account)) {
+        return TRUE;
+      }
+    }
+  }
+
+  return FALSE;
 }
 
 /**
