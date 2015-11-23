@@ -1,3 +1,6 @@
 name = Edit profile
 description = Creates separate "Edit account" and "Edit profile" tabs for each user, with custom user fields configured under "Edit profile."
 backdrop = 1.x
+type = module
+tags[] = profile
+tags[] = user accounts
