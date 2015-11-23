@@ -9,9 +9,16 @@
  * Implements hook_menu().
  */
 function edit_profile_menu() {
-  $items['user/%user/edit-profile'] = array(
+  $items['admin/config/people/edit-profile'] = array(
     'title' => 'Edit profile',
     'page callback' => 'drupal_get_form',
+    'page arguments' => array('edit_profile_settings_form'),
+    'access arguments' => array('access administration pages'),
+    'type' => MENU_LOCAL_TASK,
+  );
+  $items['user/%user/edit-profile'] = array(
+    'title' => 'Edit profile',
+    'page callback' => 'backdrop_get_form',
     'page arguments' => array('edit_profile_user_profile_form', 1),
     'access callback' => 'edit_profile_user_edit_access',
     'access arguments' => array(1),
@@ -20,7 +27,7 @@ function edit_profile_menu() {
     'weight' => -5,
     // In hook_forms() we redirect this menu item's form callback to
     // user_profile_form() instead, so we need to load its file.
-    'file path' => drupal_get_path('module', 'user'),
+    'file path' => backdrop_get_path('module', 'user'),
     'file' => 'user.pages.inc',
   );
 
@@ -90,17 +97,21 @@ function edit_profile_form_user_profile_form_alter(&$form, &$form_state, $form_i
   // need to explicitly check that we aren't on the "Edit profile" form or on a
   // different category under "Edit account", since this alter hook gets called
   // in those contexts also.)
-  if ($form_id != 'edit_profile_user_profile_form' && $form['#user_category'] == 'account') {
+  if ($form_id != 'edit_profile_user_profile_form') {
     foreach (array_keys(field_info_instances('user', 'user')) as $field_name) {
       $form[$field_name]['#access'] = FALSE;
     }
+  }
+  // Hide the picture field from the edit account page.
+  if (!empty($form['picture']) && config_get('edit_profile.settings', 'edit_profile_move_picture')) {
+    $form['picture']['#access'] = FALSE;
   }
 }
 
 /**
  * Implements hook_form_FORM_ID_alter().
  */
-function edit_profile_form_edit_profile_user_profile_form_alter(&$form, &$form_state) {
+function edit_profile_form_edit_profile_user_profile_form_alter(&$form, &$form_state, $form_id) {
   // Hide all form elements when displaying the "Edit profile" form, except
   // user fields and other elements needed for the form to function.
   $field_names = array_keys(field_info_instances('user', 'user'));
@@ -109,6 +120,10 @@ function edit_profile_form_edit_profile_user_profile_form_alter(&$form, &$form_s
     if (!in_array($key, $form_fields_to_keep)) {
       $form[$key]['#access'] = FALSE;
     }
+  }
+  // Show the picture field on the edit profile page.
+  if (!empty($form['picture']) && config_get('edit_profile.settings', 'edit_profile_move_picture')) {
+    $form['picture']['#access'] = TRUE;
   }
   // Only show the 'submit' button on this form, and hide any others (such as
   // 'cancel account').
@@ -142,4 +157,47 @@ function edit_profile_field_extra_fields_alter(&$info) {
   // displayed on "Edit profile", so there is no reason to allow them to be
   // ordered with respect to each other.
   unset($info['user']['user']['form']);
+}
+
+ /**
+ * Page admin/config/people/edit-profile form.
+ */
+function edit_profile_settings_form($form, &$form_state) {
+  $form['edit_profile_move_picture'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Move picture to the profile page'),
+    '#description' => t('Remove the user picture from the edit account page and put it on the edit profile page.'),
+    '#default_value' => config_get('edit_profile.settings', 'edit_profile_move_picture'),
+  );
+  if (!config_get('system.core', 'user_pictures')) {
+    $form['edit_profile_move_picture']['#disabled'] = TRUE;
+    $form['edit_profile_move_picture']['#default_value'] = FALSE;
+    $form['edit_profile_move_picture']['#description'] .= ' <br /><strong>' . t('You must enable the users\' pictures to activate this option.') . '</strong>';
+  }
+
+  $form['actions']['#type'] = 'actions';
+  $form['actions']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save configuration'),
+  );
+
+  return $form;
+}
+
+function edit_profile_settings_form_submit($form, &$form_state) {
+  $config = config('edit_profile.settings');
+  $config->set('edit_profile_move_picture', $form_state['values']['edit_profile_move_picture']);
+  $config->save();
+  backdrop_set_message(t('The configuration options have been saved.'));
+}
+
+/**
+ *  Implementation of hook_config_info()
+ */
+function edit_profile_config_info() {
+  $prefixes['edit_profile.settings'] = array(
+    'label' => t('Edit Profile settings'),
+    'group' => t('Configuration'),
+  );
+  return $prefixes;
 }
